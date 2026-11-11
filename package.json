@@ -6,7 +6,7 @@
   "scripts": {
   "build": "tsc",
   "watch": "tsc --watch",
-  "start": "node local-server.js"
+  "serve": "node local-server.js"
 },
   "devDependencies": {
     "typescript": "^5.0.0"

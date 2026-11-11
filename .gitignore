@@ -11,3 +11,5 @@ Thumbs.db
 
 # Temporary / screenshot files
 *.png
+
+local-server.js
