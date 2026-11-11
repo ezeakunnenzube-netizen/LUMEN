@@ -10,7 +10,7 @@ class PlainImageSearchApp {
   private api: ImageApiService;
   private lightbox: LightboxController;
 
-  private currentQuery: string = 'nature';
+  private currentQuery: string = 'featured';
   private currentPage: number = 1;
   private isLoading: boolean = false;
   private currentItems: ImageItem[] = [];
@@ -62,19 +62,22 @@ class PlainImageSearchApp {
       this.currentQuery = q.trim();
       this.searchInput.value = this.currentQuery;
     } else {
-      this.currentQuery = 'nature';
-      this.searchInput.value = 'nature';
+      this.currentQuery = 'featured';
+      this.searchInput.value = '';
     }
     this.toggleClearButton();
   }
 
   private updateUrl(): void {
-    const params = new URLSearchParams();
-    if (this.currentQuery) {
-      params.set('q', this.currentQuery);
+    const q = this.searchInput.value.trim();
+    if (q) {
+      const params = new URLSearchParams();
+      params.set('q', q);
+      const newUrl = `${window.location.pathname}?${params.toString()}`;
+      window.history.replaceState({}, '', newUrl);
+    } else {
+      window.history.replaceState({}, '', window.location.pathname);
     }
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
-    window.history.replaceState({}, '', newUrl);
   }
 
   private bindEvents(): void {
@@ -95,9 +98,10 @@ class PlainImageSearchApp {
       const val = target.value;
       this.toggleClearButton();
 
+      if (debounceTimer) clearTimeout(debounceTimer);
+
       if (val.trim()) {
         this.searchSpinner.classList.remove('hidden');
-        if (debounceTimer) clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
           if (val.trim() && val.trim() !== this.currentQuery) {
             this.currentQuery = val.trim();
@@ -106,6 +110,12 @@ class PlainImageSearchApp {
         }, 450);
       } else {
         this.searchSpinner.classList.add('hidden');
+        debounceTimer = setTimeout(() => {
+          if (this.currentQuery !== 'featured') {
+            this.currentQuery = 'featured';
+            this.executeSearch(this.currentQuery, 1, false);
+          }
+        }, 450);
       }
     });
 
@@ -114,6 +124,8 @@ class PlainImageSearchApp {
       this.searchInput.value = '';
       this.toggleClearButton();
       this.searchInput.focus();
+      this.currentQuery = 'featured';
+      this.executeSearch(this.currentQuery, 1, false);
     });
 
     // Suggestion chips
@@ -153,7 +165,8 @@ class PlainImageSearchApp {
     if (!append) {
       this.currentPage = 1;
       this.currentItems = [];
-      this.queryTitleEl.textContent = `“${query}”`;
+      const isInitialOrEmpty = !this.searchInput.value.trim();
+      this.queryTitleEl.textContent = isInitialOrEmpty ? 'Curated Discoveries' : `“${query}”`;
       this.countSpanEl.textContent = 'Searching...';
       this.renderSkeletons(12);
       this.loadMoreContainer.classList.add('hidden');

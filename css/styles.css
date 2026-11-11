@@ -287,6 +287,23 @@ img {
   color: var(--ink-light);
 }
 
+/* Remove default browser search cancel/clear button (WebKit & Edge) */
+.search-input-field::-webkit-search-cancel-button,
+.search-input-field::-webkit-search-decoration,
+.search-input-field::-webkit-search-results-button,
+.search-input-field::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none !important;
+}
+
+.search-input-field::-ms-clear,
+.search-input-field::-ms-reveal {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 .search-clear-btn {
   display: flex;
   align-items: center;
