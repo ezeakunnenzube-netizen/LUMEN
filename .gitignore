@@ -1,0 +1,13 @@
+# Dependencies (installed automatically on Vercel)
+node_modules/
+
+# Test & Browser automation files
+.playwright-mcp/
+*.log
+
+# OS-generated files
+Thumbs.db
+.DS_Store
+
+# Temporary / screenshot files
+*.png
