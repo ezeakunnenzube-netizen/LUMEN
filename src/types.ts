@@ -19,6 +19,7 @@ export interface ImageItem {
   license?: string;
   date?: string;
   dimensionsFormatted?: string;
+  mimeType?: string;
 }
 
 export interface SearchResult {

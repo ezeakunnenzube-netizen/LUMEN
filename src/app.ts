@@ -5,6 +5,7 @@
 import { ImageApiService } from './api.js';
 import { LightboxController } from './lightbox.js';
 import { ImageItem } from './types.js';
+import { downloadImageWithCompatibility } from './download.js';
 
 class PlainImageSearchApp {
   private api: ImageApiService;
@@ -267,9 +268,10 @@ class PlainImageSearchApp {
       // Clicking card or Preview button opens the realistic preview
       card.addEventListener('click', (e: MouseEvent) => {
         const target = e.target as HTMLElement;
-        if (target.closest('.download-btn')) {
+        const btn = target.closest('.download-btn') as HTMLElement;
+        if (btn) {
           e.stopPropagation();
-          this.triggerDownload(item);
+          this.triggerDownload(item, btn);
           return;
         }
         this.lightbox.open(items, index);
@@ -281,25 +283,28 @@ class PlainImageSearchApp {
     this.galleryGrid.appendChild(fragment);
   }
 
-  private triggerDownload(item: ImageItem): void {
-    const originalUrl = item.downloadUrl || item.previewUrl;
-    const filename = `${(item.title || 'photograph').slice(0, 35).replace(/[^a-z0-9]/gi, '_')}.jpg`;
+  private async triggerDownload(item: ImageItem, btn?: HTMLElement): Promise<void> {
+    const originalIcon = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.innerHTML = `<div class="card-download-spinner"></div>`;
+    }
 
-    fetch(originalUrl)
-      .then((res) => res.blob())
-      .then((blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      })
-      .catch(() => {
-        window.open(originalUrl, '_blank');
-      });
+    await downloadImageWithCompatibility(item, (status) => {
+      if (btn) {
+        if (status === 'success') {
+          btn.innerHTML = `
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#FFFFFF" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          `;
+          setTimeout(() => {
+            btn.innerHTML = originalIcon;
+          }, 2000);
+        } else if (status === 'error') {
+          btn.innerHTML = originalIcon;
+        }
+      }
+    });
   }
 
   private renderSkeletons(count: number = 12): void {

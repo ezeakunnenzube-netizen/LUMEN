@@ -26,7 +26,7 @@ export class ImageApiService {
     const offset = (page - 1) * this.perPage;
     const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
       cleanQuery
-    )}&gsrnamespace=6&gsrlimit=${this.perPage}&gsroffset=${offset}&prop=imageinfo&iiprop=url|size|extmetadata|mime&iiurlwidth=1280&format=json&origin=*`;
+    )}&gsrnamespace=6&gsrlimit=${this.perPage}&gsroffset=${offset}&prop=imageinfo&iiprop=url|size|extmetadata|mime&iiurlwidth=2048&format=json&origin=*`;
 
     try {
       const response = await fetch(url);
@@ -47,14 +47,18 @@ export class ImageApiService {
 
       const pages: any[] = Object.values(data.query.pages);
       const items: ImageItem[] = pages
-        .filter((p) => p.imageinfo && p.imageinfo.length > 0)
+        .filter((p) => {
+          if (!p.imageinfo || p.imageinfo.length === 0) return false;
+          const mime = p.imageinfo[0].mime || '';
+          return mime.startsWith('image/');
+        })
         .map((p) => {
           const info = p.imageinfo[0];
           const ext = info.extmetadata || {};
 
           // Clean title
-          const rawTitle = p.title.replace(/^File:/i, '');
-          const cleanTitle = rawTitle.replace(/\.[^/.]+$/, '').trim();
+          const rawTitle = decodeURIComponent(p.title).replace(/^File:/i, '');
+          const cleanTitle = rawTitle.replace(/\.[^/.]+$/, '').replace(/_/g, ' ').trim();
 
           // Photographer / Author
           const rawArtist = ext.Artist?.value || ext.Credit?.value || 'Wikimedia Contributor';
@@ -74,10 +78,11 @@ export class ImageApiService {
 
           // Original high-resolution URL for download
           const downloadUrl = info.url;
-          // High-definition preview URL (1280px width)
+          // High-definition preview URL (2048px width)
           const previewUrl = info.thumburl || info.url;
           // Grid thumbnail URL
           const thumbUrl = info.thumburl || info.url;
+          const mimeType = info.mime || 'image/jpeg';
 
           return {
             id: `img-${p.pageid}`,
@@ -95,7 +100,8 @@ export class ImageApiService {
             sourceUrl: `https://commons.wikimedia.org/wiki/${encodeURIComponent(p.title)}`,
             license,
             date: ext.DateTimeOriginal?.value || ext.DateTime?.value || '',
-            dimensionsFormatted: `${width} × ${height}`
+            dimensionsFormatted: `${width} × ${height}`,
+            mimeType
           };
         });
 

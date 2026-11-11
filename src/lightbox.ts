@@ -3,6 +3,7 @@
  */
 
 import { ImageItem } from './types.js';
+import { downloadImageWithCompatibility } from './download.js';
 
 export class LightboxController {
   private modalEl: HTMLElement;
@@ -180,42 +181,41 @@ export class LightboxController {
   }
 
   /**
-   * Direct high-resolution image download
+   * Direct high-resolution image download with guaranteed compatibility
    */
   private async downloadImage(item: ImageItem): Promise<void> {
-    const originalUrl = item.downloadUrl || item.previewUrl;
-    const filename = `${(item.title || 'photograph')
-      .slice(0, 40)
-      .replace(/[^a-z0-9]/gi, '_')
-      .toLowerCase()}.jpg`;
-
     this.downloadBtn.disabled = true;
-    this.downloadBtn.innerHTML = `
-      <div class="download-spinner"></div>
-      <span>Downloading...</span>
-    `;
 
-    try {
-      const response = await fetch(originalUrl);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
-
-      this.downloadBtn.innerHTML = `
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-        <span>Downloaded</span>
-      `;
-
-      setTimeout(() => {
+    await downloadImageWithCompatibility(item, (status) => {
+      if (status === 'downloading') {
+        this.downloadBtn.innerHTML = `
+          <div class="download-spinner"></div>
+          <span>Downloading...</span>
+        `;
+      } else if (status === 'processing') {
+        this.downloadBtn.innerHTML = `
+          <div class="download-spinner"></div>
+          <span>Optimizing Format...</span>
+        `;
+      } else if (status === 'success') {
+        this.downloadBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span>Downloaded</span>
+        `;
+        setTimeout(() => {
+          this.downloadBtn.disabled = false;
+          this.downloadBtn.innerHTML = `
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Download Image</span>
+          `;
+        }, 2200);
+      } else if (status === 'error') {
         this.downloadBtn.disabled = false;
         this.downloadBtn.innerHTML = `
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
@@ -225,20 +225,8 @@ export class LightboxController {
           </svg>
           <span>Download Image</span>
         `;
-      }, 2500);
-    } catch (err) {
-      console.warn('Direct blob fetch restricted by CORS, opening original:', err);
-      window.open(originalUrl, '_blank');
-      this.downloadBtn.disabled = false;
-      this.downloadBtn.innerHTML = `
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>
-        <span>Download Image</span>
-      `;
-    }
+      }
+    });
   }
 }
 
