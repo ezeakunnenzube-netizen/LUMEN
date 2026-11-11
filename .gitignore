@@ -13,3 +13,4 @@ Thumbs.db
 *.png
 
 local-server.js
+dist/
