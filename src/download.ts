@@ -1,6 +1,7 @@
 /**
  * Professional Image Downloader & Universal Compatibility Module (TypeScript)
- * Ensures downloaded images have clean filenames and open in all desktop/mobile software.
+ * Ensures downloaded images have clean filenames, full resolution, zero distortion,
+ * and open centered and full-bleed in all desktop and mobile photo viewers.
  */
 
 import { ImageItem } from './types.js';
@@ -36,11 +37,11 @@ export function getProfessionalFilename(title: string, extension: 'jpg' | 'png' 
 }
 
 /**
- * Converts any exotic/unsupported image blob (WebP, TIFF, SVG, etc.) into a 100% standard JPEG
- * baseline image that opens in every single viewer on Windows, Mac, iOS, and Android.
+ * Converts unsupported or exotic web formats (like WebP or AVIF) into a standard,
+ * universally-openable JPEG without any white borders, shrinking, or distortion.
  */
-async function convertToStandardJpeg(blob: Blob, quality: number = 0.95): Promise<Blob> {
-  return new Promise((resolve, reject) => {
+async function convertToStandardJpeg(blob: Blob, item: ImageItem, quality: number = 0.96): Promise<Blob> {
+  return new Promise((resolve) => {
     const img = new Image();
     const blobUrl = URL.createObjectURL(blob);
     img.crossOrigin = 'anonymous';
@@ -48,9 +49,19 @@ async function convertToStandardJpeg(blob: Blob, quality: number = 0.95): Promis
     img.onload = () => {
       URL.revokeObjectURL(blobUrl);
       try {
+        // Detect exact dimensions of the image
+        let width = img.naturalWidth || img.width || 0;
+        let height = img.naturalHeight || img.height || 0;
+
+        // Fallback to metadata dimensions if browser does not report natural dimensions
+        if (!width || !height) {
+          width = item.width || 1920;
+          height = item.height || 1080;
+        }
+
         const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth || img.width || 1920;
-        canvas.height = img.naturalHeight || img.height || 1080;
+        canvas.width = width;
+        canvas.height = height;
 
         const ctx = canvas.getContext('2d');
         if (!ctx) {
@@ -58,27 +69,23 @@ async function convertToStandardJpeg(blob: Blob, quality: number = 0.95): Promis
           return;
         }
 
-        // Fill white background to prevent transparent areas from rendering as black
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Maximum smoothing quality for professional rendering
+        // High quality smoothing
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(img, 0, 0);
+
+        // Draw image edge-to-edge to match the exact canvas dimensions
+        // NEVER draw at (0, 0) without width/height to avoid corner-shrinking bugs
+        ctx.drawImage(img, 0, 0, width, height);
 
         canvas.toBlob(
           (convertedBlob) => {
-            if (convertedBlob) {
-              resolve(convertedBlob);
-            } else {
-              resolve(blob);
-            }
+            resolve(convertedBlob || blob);
           },
           'image/jpeg',
           quality
         );
       } catch (err) {
+        console.warn('Canvas conversion failed, using original blob:', err);
         resolve(blob);
       }
     };
@@ -101,22 +108,23 @@ export async function downloadImageWithCompatibility(
 ): Promise<void> {
   if (onStatusChange) onStatusChange('downloading');
 
+  // Primary download source
   const primaryUrl = item.downloadUrl || item.previewUrl;
   const fallbackUrl = item.previewUrl || item.downloadUrl;
 
   let blob: Blob | null = null;
 
-  // Attempt 1: Fetch original high-resolution URL
+  // Attempt 1: Fetch download URL
   try {
     const res = await fetch(primaryUrl);
     if (res.ok) {
       blob = await res.blob();
     }
   } catch (err) {
-    console.warn('Original high-res fetch restricted or timed out, trying fallback preview...', err);
+    console.warn('Primary image fetch restricted or timed out, trying preview fallback...', err);
   }
 
-  // Attempt 2: Fallback to high-definition preview URL if attempt 1 failed
+  // Attempt 2: Fallback to high-res preview URL if attempt 1 failed
   if (!blob && fallbackUrl && fallbackUrl !== primaryUrl) {
     try {
       const res = await fetch(fallbackUrl);
@@ -124,11 +132,11 @@ export async function downloadImageWithCompatibility(
         blob = await res.blob();
       }
     } catch (err) {
-      console.warn('Fallback preview fetch failed:', err);
+      console.warn('Preview fallback fetch failed:', err);
     }
   }
 
-  // If both direct blob fetches failed (e.g. strict browser sandbox), trigger direct link download
+  // If both direct blob fetches failed, trigger direct link download
   if (!blob) {
     if (onStatusChange) onStatusChange('error');
     const a = document.createElement('a');
@@ -144,25 +152,29 @@ export async function downloadImageWithCompatibility(
 
   if (onStatusChange) onStatusChange('processing');
 
-  // Check format and determine compatibility
+  // Detect format
   const detectedType = (blob.type || item.mimeType || '').toLowerCase();
+  const urlCheck = primaryUrl.toLowerCase();
   let finalBlob = blob;
   let ext: 'jpg' | 'png' = 'jpg';
 
-  if (detectedType.includes('png')) {
-    // Standard PNG is universally supported and preserves transparency
+  if (detectedType.includes('png') || urlCheck.includes('.png')) {
+    // 1. Genuine PNG: Standard, lossless, perfectly compatible with all phones
     ext = 'png';
-  } else if (detectedType.includes('jpeg') || detectedType.includes('jpg')) {
-    // Standard JPEG is universally supported
+    finalBlob = blob;
+  } else if (detectedType.includes('jpeg') || detectedType.includes('jpg') || urlCheck.includes('.jpg') || urlCheck.includes('.jpeg')) {
+    // 2. Genuine JPEG: Standard photographic format, 100% compatible with all phones
+    // Keep raw original blob directly to preserve camera metadata and avoid any canvas distortion
     ext = 'jpg';
+    finalBlob = blob;
   } else {
-    // WebP, SVG, TIFF, AVIF, or unknown format:
-    // Convert to standard JPEG so any software (Windows Photo Viewer, Photoshop, MS Office) can open it
+    // 3. Exotic format (WebP, AVIF, etc.): Convert cleanly to standard JPEG
     try {
-      finalBlob = await convertToStandardJpeg(blob, 0.95);
+      finalBlob = await convertToStandardJpeg(blob, item, 0.96);
       ext = 'jpg';
     } catch {
       ext = 'jpg';
+      finalBlob = blob;
     }
   }
 
@@ -179,7 +191,7 @@ export async function downloadImageWithCompatibility(
 
   setTimeout(() => {
     URL.revokeObjectURL(objectUrl);
-  }, 2000);
+  }, 2500);
 
   if (onStatusChange) onStatusChange('success');
 }

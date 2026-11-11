@@ -76,13 +76,17 @@ export class ImageApiService {
           const height = Number(info.height) || 1080;
           const aspectRatio = width / (height || 1);
 
-          // Original high-resolution URL for download
-          const downloadUrl = info.url;
-          // High-definition preview URL (2048px width)
+          // Check if the source file is an SVG vector or TIFF scan
+          const isVectorOrTiff =
+            (info.mime && (info.mime.includes('svg') || info.mime.includes('tiff') || info.mime.includes('tif'))) ||
+            /\.(svg|tiff?)$/i.test(info.url || '');
+
+          // For SVGs and TIFFs, info.thumburl is Wikimedia's pre-rendered 2048px/3840px standard raster (PNG/JPEG)
+          // which is guaranteed to open on all mobile phones without vector canvas sizing bugs.
+          const downloadUrl = isVectorOrTiff ? (info.thumburl || info.url) : info.url;
           const previewUrl = info.thumburl || info.url;
-          // Grid thumbnail URL
           const thumbUrl = info.thumburl || info.url;
-          const mimeType = info.mime || 'image/jpeg';
+          const mimeType = isVectorOrTiff ? 'image/png' : (info.mime || 'image/jpeg');
 
           return {
             id: `img-${p.pageid}`,
