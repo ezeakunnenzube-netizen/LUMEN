@@ -4,10 +4,10 @@
   "description": "Realistic Plain Image Search Engine with high-definition preview and direct download built with TypeScript.",
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
-    "start": "node server.js"
-  },
+  "build": "tsc",
+  "watch": "tsc --watch",
+  "start": "node local-server.js"
+},
   "devDependencies": {
     "typescript": "^5.0.0"
   }
